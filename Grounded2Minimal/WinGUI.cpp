@@ -66,6 +66,7 @@
 #define IDC_STATIC_CLASS_SEARCH                 603
 #define IDC_STATIC_VERSION                      604
 #define IDC_STATIC_GITHUB                       605
+#define IDC_TAB_MAIN                            700
 
 #define GUI_WINDOW_HEIGHT         800
 #define GUI_WINDOW_WIDTH          800
@@ -291,6 +292,217 @@ namespace WinGUI {
     static HWND g_hButtonToggleAutoCompleteBuildings = nullptr;
 
     ///////////////////////////////////////////////////////
+    /// Tab layout
+    ///
+    /// Controls are grouped into pages (tabs). Each control's position and page
+    /// are declared once in g_ControlLayouts. Positions are relative to the
+    /// content area, which starts below the tab header.
+
+    enum class GuiPage : int32_t {
+        Spawner = 0,
+        Cheats  = 1,
+        Options = 2,
+        Debug   = 3,
+    };
+
+    static const wchar_t* g_wszPageNames[] = { L"Spawner", L"Cheats", L"Options", L"Debug" };
+    static constexpr int32_t GUI_PAGE_COUNT = 4;
+    static constexpr int32_t GUI_CONTENT_TOP = 44;
+    static constexpr int32_t GUI_FOOTER_HEIGHT = 28;
+    static constexpr int32_t GUI_CHEAT_COLUMNS = 3;
+    static constexpr int32_t GUI_CHEAT_BUTTON_WIDTH = 248;
+    static constexpr int32_t GUI_CHEAT_BUTTON_HEIGHT = 28;
+    static constexpr int32_t GUI_CHEAT_ROW_SPACING = 34;
+    static constexpr int32_t GUI_CHEAT_TOP = 80;
+
+    static HWND g_hTabMain = nullptr;
+    static HFONT g_hGuiFont = nullptr;
+    static GuiPage g_CurrentPage = GuiPage::Spawner;
+
+    struct ControlLayout {
+        int32_t ControlId;
+        GuiPage Page;
+        int32_t X;
+        int32_t Y;
+        int32_t Width;
+        int32_t Height;
+    };
+
+    static const ControlLayout g_ControlLayouts[] = {
+        // Spawner: player, DataTable, and item lists, then the spawn controls
+        { IDC_LIST_PLAYERS,            GuiPage::Spawner, 12,  0,   232, 240 },
+        { IDC_LIST_DATA_TABLES,        GuiPage::Spawner, 256, 0,   232, 240 },
+        { IDC_LIST_ITEM_NAMES,         GuiPage::Spawner, 500, 0,   272, 240 },
+        { IDC_STATIC_ITEM_SEARCH,      GuiPage::Spawner, 500, 258, 56,  20  },
+        { IDC_EDIT_ITEM_SEARCH,        GuiPage::Spawner, 560, 254, 212, 24  },
+        { IDC_STATIC_ITEM_COUNT,       GuiPage::Spawner, 12,  266, 80,  20  },
+        { IDC_EDIT_ITEM_COUNT,         GuiPage::Spawner, 96,  262, 60,  24  },
+        { IDC_BUTTON_SPAWN,            GuiPage::Spawner, 168, 260, 100, 28  },
+
+        // Cheats: toggles and build-all. Cheat buttons are placed in a grid by ApplyGuiPage.
+        { IDC_TOGGLE_BUILD_ANYWHERE,           GuiPage::Cheats, 12,  0,  232, 22 },
+        { IDC_TOGGLE_HANDY_GNAT,               GuiPage::Cheats, 256, 0,  232, 22 },
+        { IDC_TOGGLE_AUTO_COMPLETE_BUILDINGS,  GuiPage::Cheats, 500, 0,  272, 22 },
+        { IDC_TOGGLE_BUILDING_INTEGRITY,       GuiPage::Cheats, 12,  26, 232, 22 },
+        { IDC_BUTTON_BUILD_ALL_STRUCTURES,     GuiPage::Cheats, 256, 22, 240, 28 },
+
+        // Options: one row per value, edit box then its Set button
+        { IDC_MUTATIONS_COUNT,             GuiPage::Options, 12,  0,   80, 26 },
+        { IDC_BUTTON_SET_MUTATIONS,        GuiPage::Options, 100, 0,   300, 26 },
+        { IDC_COZINESS_LEVEL,              GuiPage::Options, 12,  36,  80, 26 },
+        { IDC_BUTTON_SET_COZINESS,         GuiPage::Options, 100, 36,  300, 26 },
+        { IDC_NEARBY_STORAGE_RADIUS,       GuiPage::Options, 12,  72,  80, 26 },
+        { IDC_BUTTON_SET_NEARBY_STORAGE_RADIUS, GuiPage::Options, 100, 72, 300, 26 },
+        { IDC_CHILL_RATE_MULT,             GuiPage::Options, 12,  108, 80, 26 },
+        { IDC_BUTTON_SET_CHILL_RATE_MULT,  GuiPage::Options, 100, 108, 300, 26 },
+        { IDC_SIZZLE_RATE_MULT,            GuiPage::Options, 12,  144, 80, 26 },
+        { IDC_BUTTON_SET_SIZZLE_RATE_MULT, GuiPage::Options, 100, 144, 300, 26 },
+        { IDC_PERFECT_BLOCK_WINDOW,        GuiPage::Options, 12,  180, 80, 26 },
+        { IDC_BUTTON_SET_PERFECT_BLOCK_WINDOW, GuiPage::Options, 100, 180, 300, 26 },
+        { IDC_DODGE_DISTANCE,              GuiPage::Options, 12,  216, 80, 26 },
+        { IDC_BUTTON_SET_DODGE_DISTANCE,   GuiPage::Options, 100, 216, 300, 26 },
+        { IDC_CURRENT_FOOD_LEVEL,          GuiPage::Options, 12,  252, 80, 26 },
+        { IDC_BUTTON_SET_CURRENT_FOOD_LEVEL,   GuiPage::Options, 100, 252, 300, 26 },
+        { IDC_CURRENT_WATER_LEVEL,         GuiPage::Options, 12,  288, 80, 26 },
+        { IDC_BUTTON_SET_CURRENT_WATER_LEVEL,  GuiPage::Options, 100, 288, 300, 26 },
+
+        // Debug: console and global cheat options, then the class list and summon
+        { IDC_CHECK_SHOW_CONSOLE,      GuiPage::Debug, 12,  0,   232, 22 },
+        { IDC_CHECK_GLOBAL_CHEAT,      GuiPage::Debug, 256, 0,   232, 22 },
+        { IDC_LIST_CLASS_NAMES,        GuiPage::Debug, 12,  34,  516, 240 },
+        { IDC_STATIC_CLASS_SEARCH,     GuiPage::Debug, 12,  286, 100, 20  },
+        { IDC_EDIT_CLASS_SEARCH,       GuiPage::Debug, 116, 282, 260, 24  },
+        { IDC_BUTTON_SUMMON,           GuiPage::Debug, 12,  318, 120, 28  },
+    };
+
+    struct LayoutContext {
+        GuiPage Page;
+        int32_t FooterY;
+    };
+
+    static bool IsCheatButtonHandle(HWND hWnd) {
+        for (const auto& cheatButton : g_CheatButtons) {
+            if (cheatButton.ButtonHandle == hWnd) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Places or hides each child control depending on the current page
+    static BOOL CALLBACK GuiLayoutEnumProc(HWND hChild, LPARAM lParam) {
+        const LayoutContext* lpContext = reinterpret_cast<const LayoutContext*>(lParam);
+        const int32_t iControlId = GetDlgCtrlID(hChild);
+
+        // The tab bar stays where it is
+        if (hChild == g_hTabMain) {
+            return TRUE;
+        }
+
+        // Footer is always visible
+        if (IDC_STATIC_VERSION == iControlId) {
+            SetWindowPos(hChild, NULL, 12, lpContext->FooterY, 300, 22, SWP_NOZORDER | SWP_SHOWWINDOW);
+            return TRUE;
+        }
+        if (IDC_STATIC_GITHUB == iControlId) {
+            SetWindowPos(hChild, NULL, 320, lpContext->FooterY, 380, 22, SWP_NOZORDER | SWP_SHOWWINDOW);
+            return TRUE;
+        }
+
+        // Cheat buttons are placed in ApplyGuiPage
+        if (IsCheatButtonHandle(hChild)) {
+            return TRUE;
+        }
+
+        for (const auto& layout : g_ControlLayouts) {
+            if (layout.ControlId != iControlId) {
+                continue;
+            }
+
+            if (layout.Page == lpContext->Page) {
+                SetWindowPos(
+                    hChild, NULL,
+                    layout.X, GUI_CONTENT_TOP + layout.Y,
+                    layout.Width, layout.Height,
+                    SWP_NOZORDER | SWP_SHOWWINDOW
+                );
+            } else {
+                ShowWindow(hChild, SW_HIDE);
+            }
+            return TRUE;
+        }
+
+        // Not on any page
+        ShowWindow(hChild, SW_HIDE);
+        return TRUE;
+    }
+
+    // Shows the given page and hides the rest
+    static void ApplyGuiPage(GuiPage page) {
+        if (nullptr == g_hMainWnd) {
+            return;
+        }
+
+        g_CurrentPage = page;
+
+        RECT rcClient = { 0 };
+        GetClientRect(g_hMainWnd, &rcClient);
+
+        LayoutContext context = { page, rcClient.bottom - GUI_FOOTER_HEIGHT };
+        EnumChildWindows(g_hMainWnd, GuiLayoutEnumProc, reinterpret_cast<LPARAM>(&context));
+
+        // Cheat buttons: grid on the Cheats page, hidden elsewhere
+        int32_t iSlot = 0;
+        for (const auto& cheatButton : g_CheatButtons) {
+            if (nullptr == cheatButton.ButtonHandle) {
+                continue;
+            }
+
+            if (GuiPage::Cheats != page) {
+                ShowWindow(cheatButton.ButtonHandle, SW_HIDE);
+                continue;
+            }
+
+            int32_t iColumn = iSlot % GUI_CHEAT_COLUMNS;
+            int32_t iRow = iSlot / GUI_CHEAT_COLUMNS;
+            SetWindowPos(
+                cheatButton.ButtonHandle, NULL,
+                12 + iColumn * (GUI_CHEAT_BUTTON_WIDTH + 8),
+                GUI_CONTENT_TOP + GUI_CHEAT_TOP + iRow * GUI_CHEAT_ROW_SPACING,
+                GUI_CHEAT_BUTTON_WIDTH, GUI_CHEAT_BUTTON_HEIGHT,
+                SWP_NOZORDER | SWP_SHOWWINDOW
+            );
+            ++iSlot;
+        }
+    }
+
+    // Applies one font to every control so the UI reads consistently
+    static void ApplyGuiFont(void) {
+        if (nullptr == g_hGuiFont) {
+            g_hGuiFont = CreateFontW(
+                -15, 0, 0, 0,
+                FW_NORMAL, FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                L"Segoe UI"
+            );
+        }
+
+        if (nullptr == g_hGuiFont) {
+            return;
+        }
+
+        EnumChildWindows(
+            g_hMainWnd,
+            [](HWND hChild, LPARAM lParam) -> BOOL {
+                SendMessage(hChild, WM_SETFONT, static_cast<WPARAM>(lParam), TRUE);
+                return TRUE;
+            },
+            reinterpret_cast<LPARAM>(g_hGuiFont)
+        );
+    }
+
+    ///////////////////////////////////////////////////////
     /// Forward declarations
 
     LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -395,7 +607,7 @@ namespace WinGUI {
         std::thread([]() {
             // Initialize common controls
             INITCOMMONCONTROLSEX icexControls = {
-                sizeof(icexControls), ICC_LISTVIEW_CLASSES
+                sizeof(icexControls), ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES
             };
             InitCommonControlsEx(&icexControls);
 
@@ -422,7 +634,7 @@ namespace WinGUI {
                 0,
                 wcWindowClass.lpszClassName,
                 L"Grounded 2 Debug GUI",
-                WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU,
+                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                 CW_USEDEFAULT, CW_USEDEFAULT,
                 GUI_WINDOW_WIDTH, GUI_WINDOW_HEIGHT,
                 NULL, NULL, wcWindowClass.hInstance, NULL
@@ -848,6 +1060,29 @@ namespace WinGUI {
                 wcWindowClass.hInstance, 
                 NULL
             );
+
+            // Tab bar for switching between pages
+            g_hTabMain = CreateWindowEx(
+                0, WC_TABCONTROL, NULL,
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                8, 8, GUI_WINDOW_WIDTH - 32, 32,
+                g_hMainWnd,
+                (HMENU) IDC_TAB_MAIN,
+                wcWindowClass.hInstance,
+                NULL
+            );
+
+            if (nullptr != g_hTabMain) {
+                for (int32_t i = 0; i < GUI_PAGE_COUNT; ++i) {
+                    TCITEMW tciPage = {};
+                    tciPage.mask = TCIF_TEXT;
+                    tciPage.pszText = (LPWSTR) g_wszPageNames[i];
+                    TabCtrl_InsertItem(g_hTabMain, i, &tciPage);
+                }
+            }
+
+            ApplyGuiFont();
+            ApplyGuiPage(GuiPage::Spawner);
 
             // ~~Deploy the boy~~ Not until errytin initialized!!!
             ShowWindow(g_hMainWnd, SW_HIDE);
@@ -1282,6 +1517,16 @@ namespace WinGUI {
             case WM_NOTIFY: {
                 LPNMHDR lpNmHdr = (LPNMHDR) lParam;
                 if (nullptr == lpNmHdr) {
+                    break;
+                }
+
+                // Page switched in the tab bar
+                if (
+                    IDC_TAB_MAIN == lpNmHdr->idFrom
+                    &&
+                    TCN_SELCHANGE == lpNmHdr->code
+                ) {
+                    ApplyGuiPage(static_cast<GuiPage>(TabCtrl_GetCurSel(g_hTabMain)));
                     break;
                 }
 
