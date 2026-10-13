@@ -448,7 +448,8 @@ namespace CheatManager {
                 );
                 return;
             }
-            lpSettings->bRecipesRequireIngredients = bEnable;
+            // bEnable means free crafting is on, so ingredients are not required
+            lpSettings->bRecipesRequireIngredients = !bEnable;
         }
 
         void ToggleInvinciblePets(
