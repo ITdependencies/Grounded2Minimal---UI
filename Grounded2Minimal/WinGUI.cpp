@@ -15,6 +15,7 @@
 #include <thread>
 #include <atomic>
 #include <algorithm>
+#include <cctype>
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -1824,6 +1825,22 @@ namespace WinGUI {
                 return;
             }
             
+            // Sort items alphabetically (case-insensitive) so they are easy to scan.
+            // Filtering keeps this order, since it iterates the same vector.
+            std::sort(
+                vszItemNames.begin(),
+                vszItemNames.end(),
+                [](const std::string& a, const std::string& b) {
+                    return std::lexicographical_compare(
+                        a.begin(), a.end(),
+                        b.begin(), b.end(),
+                        [](unsigned char x, unsigned char y) {
+                            return std::tolower(x) < std::tolower(y);
+                        }
+                    );
+                }
+            );
+
             // Store the current DataTable items for filtering
             g_vCurrentDataTableItems = vszItemNames;
             g_szCurrentDataTableName = szTableNameStr;
@@ -1866,15 +1883,43 @@ namespace WinGUI {
 
         // Populate DataTable list (TODO: wrap this one too)
         ClearDataTableList();
+
+        // Sort tables alphabetically (case-insensitive), with Table_AllItems pinned
+        // first since it is the one most users want.
+        std::vector<const UnrealUtils::DataTableInfo*> vpSortedTables;
+        vpSortedTables.reserve(g_vDataTables.size());
         for (const auto& dtInfo : g_vDataTables) {
+            vpSortedTables.push_back(&dtInfo);
+        }
+
+        std::sort(
+            vpSortedTables.begin(),
+            vpSortedTables.end(),
+            [](const UnrealUtils::DataTableInfo* a, const UnrealUtils::DataTableInfo* b) {
+                const bool bAllItemsA = (a->szTableName == "Table_AllItems");
+                const bool bAllItemsB = (b->szTableName == "Table_AllItems");
+                if (bAllItemsA != bAllItemsB) {
+                    return bAllItemsA;
+                }
+                return std::lexicographical_compare(
+                    a->szTableName.begin(), a->szTableName.end(),
+                    b->szTableName.begin(), b->szTableName.end(),
+                    [](unsigned char x, unsigned char y) {
+                        return std::tolower(x) < std::tolower(y);
+                    }
+                );
+            }
+        );
+
+        for (const auto* dtInfo : vpSortedTables) {
             std::wstring szTableNameW;
-            if (!CoreUtils::Utf8ToWideString(dtInfo.szTableName, szTableNameW)) {
+            if (!CoreUtils::Utf8ToWideString(dtInfo->szTableName, szTableNameW)) {
                 LogError("WinGUI", "Failed to convert DataTable name to wide string");
                 continue;
             }
             AddDataTable(szTableNameW);
-            LogMessage("WinGUI", "Added DataTable: " + dtInfo.szTableName + 
-                " with " + std::to_string(dtInfo.GetItemCount()) + " items", true);
+            LogMessage("WinGUI", "Added DataTable: " + dtInfo->szTableName +
+                " with " + std::to_string(dtInfo->GetItemCount()) + " items", true);
         }
 
         // Populate class list
