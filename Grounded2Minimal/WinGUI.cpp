@@ -30,6 +30,7 @@
 #define IDC_TOGGLE_HANDY_GNAT                   103
 #define IDC_TOGGLE_AUTO_COMPLETE_BUILDINGS      104
 #define IDC_TOGGLE_BUILDING_INTEGRITY           105
+#define IDC_TOGGLE_FREE_CRAFTING                106
 #define IDC_LIST_PLAYERS                        200
 #define IDC_LIST_DATA_TABLES                    201
 #define IDC_LIST_ITEM_NAMES                     202
@@ -290,6 +291,7 @@ namespace WinGUI {
     static HWND g_hButtonToggleHandyGnat = nullptr;
     static HWND g_hButtonToggleBuildingIntegrity = nullptr;
     static HWND g_hButtonToggleAutoCompleteBuildings = nullptr;
+    static HWND g_hButtonToggleFreeCrafting = nullptr;
 
     ///////////////////////////////////////////////////////
     /// Tab layout
@@ -344,6 +346,7 @@ namespace WinGUI {
         { IDC_TOGGLE_HANDY_GNAT,               GuiPage::Cheats, 256, 0,  232, 22 },
         { IDC_TOGGLE_AUTO_COMPLETE_BUILDINGS,  GuiPage::Cheats, 500, 0,  272, 22 },
         { IDC_TOGGLE_BUILDING_INTEGRITY,       GuiPage::Cheats, 12,  26, 232, 22 },
+        { IDC_TOGGLE_FREE_CRAFTING,            GuiPage::Cheats, 500, 26, 272, 22 },
         { IDC_BUTTON_BUILD_ALL_STRUCTURES,     GuiPage::Cheats, 256, 22, 240, 28 },
 
         // Options: one row per value, edit box then its Set button
@@ -775,6 +778,22 @@ namespace WinGUI {
                     g_hMainWnd,
                     IDC_TOGGLE_BUILDING_INTEGRITY,
                     g_GameOptions.GameStatics.BuildingIntegrity.load() ? BST_CHECKED : BST_UNCHECKED
+                );
+            }
+
+            // Free crafting: recipes do not require ingredients
+            g_hButtonToggleFreeCrafting = CreateWindowEx(
+                0, L"BUTTON", L"Free Crafting",
+                WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX | WS_TABSTOP,
+                500, 60, 200, 20,
+                g_hMainWnd, (HMENU) IDC_TOGGLE_FREE_CRAFTING, wcWindowClass.hInstance, NULL
+            );
+
+            if (nullptr != g_hButtonToggleFreeCrafting) {
+                CheckDlgButton(
+                    g_hMainWnd,
+                    IDC_TOGGLE_FREE_CRAFTING,
+                    g_GameOptions.GameStatics.FreeCrafting.load() ? BST_CHECKED : BST_UNCHECKED
                 );
             }
 
@@ -1728,6 +1747,33 @@ namespace WinGUI {
                             "Auto-Complete Buildings " + std::string(
                                 bNewState 
                                 ? "enabled" 
+                                : "disabled"
+                            ),
+                            true
+                        );
+                        break;
+                    }
+
+                    case IDC_TOGGLE_FREE_CRAFTING: {
+                        bool bNewState = (BST_CHECKED == IsDlgButtonChecked(
+                            hWnd,
+                            IDC_TOGGLE_FREE_CRAFTING
+                        ));
+
+                        g_GameOptions.GameStatics.FreeCrafting.store(
+                            bNewState,
+                            std::memory_order_release
+                        );
+
+                        CheatManager::StaticCheats::ToggleFreeCrafting(
+                            bNewState
+                        );
+
+                        LogMessage(
+                            "WinGUI",
+                            "Free crafting " + std::string(
+                                bNewState
+                                ? "enabled"
                                 : "disabled"
                             ),
                             true
